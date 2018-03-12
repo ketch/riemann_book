@@ -521,7 +521,7 @@ def make_demo_plot_function(h_l=3., h_r=1., u_l=0., u_r=0,
 
     return plot_shallow_water_demo
 
-def macro_riemann_plot(i,figsize=(10,3)):
+def macro_riemann_plot(which,context='notebook',figsize=(10,3)):
     """
     Some simulations to show that the Riemann solution describes macroscopic behavior
     in the Cauchy problem.
@@ -559,10 +559,10 @@ def macro_riemann_plot(i,figsize=(10,3)):
     xs = 0.1
 
     alpha = (xs-xc)/(2.*xs)
-    if i==1:
+    if which=='linear':
         state.q[depth,:] = hl*(xc<=-xs) + hr*(xc>xs) + (alpha*hl + (1-alpha)*hr)*(xc>-xs)*(xc<=xs)
         state.q[momentum,:] = hl*ul*(xc<=-xs) + hr*ur*(xc>xs) + (alpha*hl*ul + (1-alpha)*hr*ur)*(xc>-xs)*(xc<=xs)
-    elif i==2:
+    elif which=='oscillatory':
         state.q[depth,:] = hl*(xc<=-xs) + hr*(xc>xs) + (alpha*hl + (1-alpha)*hr+0.2*np.sin(8*np.pi*xc/xs))*(xc>-xs)*(xc<=xs)
         state.q[momentum,:] = hl*ul*(xc<=-xs) + hr*ur*(xc>xs) + (alpha*hl*ul + (1-alpha)*hr*ur+0.2*np.cos(8*np.pi*xc/xs))*(xc>-xs)*(xc<=xs)
 
@@ -573,7 +573,7 @@ def macro_riemann_plot(i,figsize=(10,3)):
     claw.solution = pyclaw.Solution(state,domain)
     claw.solver = solver
     claw.keep_copy = True
-    claw.num_output_times = 10
+    claw.num_output_times = 5
     claw.verbosity = 0
 
     claw.run()
@@ -614,11 +614,13 @@ def macro_riemann_plot(i,figsize=(10,3)):
     for color in colors:
         fills[color] = ax_h.fill_between(x,b,surface,facecolor=color,where=stripes[color],alpha=0.5)
 
-    ax_h.set_xlabel('$x$'); ax_h.set_ylabel('depth ($h$)')
+    ax_h.set_xlabel('$x$'); ax_u.set_xlabel('$x$');
     ax_h.set_xlim(-1,1); ax_h.set_ylim(0,3.5)
     ax_u.set_xlim(-1,1); ax_u.set_ylim(-1,1)
+    ax_u.set_title('Velocity'); ax_h.set_title('Depth')
 
     def fplot(frame_number):
+        fig.suptitle('Solution at time $t='+str(frame_number/10.)+'$',fontsize=12)
         # Remove old fill_between plots
         for color in colors:
             fills[color].remove()
@@ -636,6 +638,12 @@ def macro_riemann_plot(i,figsize=(10,3)):
             fills[color] = ax_h.fill_between(x,b,surface,facecolor=color,where=stripes[color],alpha=0.5)
         return line,
 
-    anim = animation.FuncAnimation(fig, fplot, frames=len(claw.frames), interval=200, repeat=False)
-    plt.close()
-    return HTML(anim.to_jshtml())
+    if context in ['notebook','html']:
+        anim = animation.FuncAnimation(fig, fplot, frames=len(claw.frames), interval=200, repeat=False)
+        plt.close()
+        return HTML(anim.to_jshtml())
+    else:  # PDF output
+        fplot(0)
+        plt.show()
+        fplot(2)
+        return fig
