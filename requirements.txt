@@ -1,3 +1,4 @@
+jupyter_contrib_nbextensions
 six
 numpy >= 1.12
 matplotlib >= 2.0.0
