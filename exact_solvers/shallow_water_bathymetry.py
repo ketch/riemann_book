@@ -8,6 +8,13 @@ the stationary wave is in the middle, so we refer to the other two as 1-waves an
 3-waves.  If the 1-wave or 3-wave is transonic, then it manifests as two waves, one
 of which is a rarefaction; the other may be a shock or rarefaction.  In this sense
 there may be as many as 4 waves in the solution.
+
+Current status of the solver: it correctly handles all subcritical cases and
+most supercritical cases.  Some situations with bathymetry higher on the left
+still need to be coded up.  Many resonant (transcritical) cases are also handled
+correctly, but for some (and for some supercritical cases that are near resonance)
+the solver does not converge.  There are also cases where it may converge to either
+of two solutions, both of which seem physically reasonable.
 """
 
 import numpy as np
@@ -77,7 +84,7 @@ def shock_speed(left, right):
     "Inputs are in primitive variables (h, u)."
     return (right[depth]*right[1]-left[depth]*left[1])/(right[depth]-left[depth])
 
-def exact_riemann_solution(q_l, q_r, b_l, b_r, g=1., which='hydrostatic', primitive_inputs=False):
+def exact_riemann_solution(q_l, q_r, b_l, b_r, g=1., which='hydrostatic', primitive_inputs=False,perturb_guess=False):
     if primitive_inputs:
         h_l, u_l = q_l
         h_r, u_r = q_r
@@ -85,7 +92,7 @@ def exact_riemann_solution(q_l, q_r, b_l, b_r, g=1., which='hydrostatic', primit
         h_l, u_l = conservative_to_primitive(*q_l)
         h_r, u_r = conservative_to_primitive(*q_r)
 
-    states, speeds, wave_types = predictor(h_l, h_r, u_l, u_r, b_l, b_r, g=1.)
+    states, speeds, wave_types = predictor(h_l, h_r, u_l, u_r, b_l, b_r, g=1.,perturb_guess=perturb_guess)
     states, speeds, reval, wave_types = corrector(states,b_l,b_r, g=1., which=which)
     return states, speeds, reval, wave_types
 
@@ -107,7 +114,17 @@ def discharge_condition(left, right, b_l, b_r, g, which='hydrostatic'):
         return right[depth]*right[1]**2-left[depth]*left[1]**2 + 0.5*g*(right[depth]**2-left[depth]**2) + g*htilde*(b_r-b_l)
 
 
-def predictor(h_l, h_r, u_l, u_r, b_l, b_r, g=1.):
+def predictor(h_l, h_r, u_l, u_r, b_l, b_r, g=1., perturb_guess=False):
+    """
+    Use a linearized approximate solver to guess the wave structure and states
+    in the solution of the Riemann problem.
+
+    'perturb_guess' is an experimental parameter that sets one of the intermediate
+    velocities to zero in order to pick up alternative solutions in certain cases.
+
+    Since the corrector function only uses the states (not the speeds or the
+    wave types), a lot of the code here could be removed.
+    """
     # Roe averages
     h_ave = 0.5*(h_l+h_r)
     u_ave = (u_l*np.sqrt(h_l)+u_r*np.sqrt(h_r))/(np.sqrt(h_l)+np.sqrt(h_r))
@@ -209,9 +226,21 @@ def predictor(h_l, h_r, u_l, u_r, b_l, b_r, g=1.):
 
     else:
         raise Exception("Unexpected ordering of wavespeeds in predictor.")
+
+    if perturb_guess:
+        states[1,1]=0.
     return states, speeds, wave_types
 
 def corrector(states, b_l, b_r, g=1., which='hydrostatic'):
+    """
+    Iterate to find a solution of the Riemann problem based on an initial
+    guess for the states.
+
+    which: determines the relation that is used across the bathymetry jump.
+           Allowed values are 'hydrostatic' (Rosetti/Bernetti), 'alcrudo'
+           (conservation of energy) or 'dgeorge' (also conservation of energy
+           and identical to using 'alcrudo').
+    """
     l = 0
     r = 3
 
@@ -326,7 +355,6 @@ def corrector(states, b_l, b_r, g=1., which='hydrostatic'):
     h_r    = states[0,3]; hu_r    = states[1,3]
 
     c1_lstar = c1(hlstar, ulstar, g)
-    c3_rstar = c3(hrstar, urstar, g)
 
     if (c1_lstar < 0) and (c1(hrstar,urstar,g)>0):  # Resonant 1-wave
         wave_types = ['','contact','raref','']  # Correct only if b_r > b_l
