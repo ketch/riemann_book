@@ -414,7 +414,7 @@ def corrector(states, b_l, b_r, g=1., which='hydrostatic'):
                     (xi>ws[0])*(xi<=ws[1])*rar1a[1] + \
                     (xi>ws[1])*(xi<=ws[2])*hlstar*ulstar +  \
                     (xi>ws[3])*(xi<=ws[4])*rar1b[1] +  \
-                    (xi>ws[4])*(xi<=ws[4])*hrstar*urstar +  \
+                    (xi>ws[4])*(xi<=ws[5])*hrstar*urstar +  \
                     (xi>ws[5])*(xi<=ws[6])*rar2[1] +  \
                     (xi>ws[6])*hu_r
             h_out[h_out>1e8] = np.nan
