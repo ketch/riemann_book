@@ -19,6 +19,8 @@ of two solutions, both of which seem physically reasonable.
 
 import numpy as np
 from scipy.optimize import fsolve, root
+from .shallow_water import hugoniot_locus, integral_curve
+import matplotlib.pyplot as plt
 
 conserved_variables = ('Depth', 'Momentum')
 primitive_variables = ('Depth', 'Velocity')
@@ -84,7 +86,7 @@ def shock_speed(left, right):
     "Inputs are in primitive variables (h, u)."
     return (right[depth]*right[1]-left[depth]*left[1])/(right[depth]-left[depth])
 
-def exact_riemann_solution(q_l, q_r, b_l, b_r, g=1., which='hydrostatic', primitive_inputs=False,perturb_guess=False):
+def exact_riemann_solution(q_l, q_r, b_l, b_r, g=1., which='alcrudo', primitive_inputs=False,perturb_guess=False):
     if primitive_inputs:
         h_l, u_l = q_l
         h_r, u_r = q_r
@@ -96,7 +98,7 @@ def exact_riemann_solution(q_l, q_r, b_l, b_r, g=1., which='hydrostatic', primit
     states, speeds, reval, wave_types = corrector(states,b_l,b_r, g=1., which=which)
     return states, speeds, reval, wave_types
 
-def discharge_condition(left, right, b_l, b_r, g, which='hydrostatic'):
+def discharge_condition(left, right, b_l, b_r, g, which='alcrudo'):
     if which == 'hydrostatic':
         if b_r > b_l:
             h_s = left[depth] - (b_r-b_l)
@@ -231,7 +233,7 @@ def predictor(h_l, h_r, u_l, u_r, b_l, b_r, g=1., perturb_guess=False):
         states[1,1]=0.
     return states, speeds, wave_types
 
-def corrector(states, b_l, b_r, g=1., which='hydrostatic'):
+def corrector(states, b_l, b_r, g=1., which='alcrudo'):
     """
     Iterate to find a solution of the Riemann problem based on an initial
     guess for the states.
@@ -522,3 +524,117 @@ def corrector(states, b_l, b_r, g=1., which='hydrostatic'):
             hu_out[hu_out>1e8] = np.nan
             return h_out, hu_out
     return states, speeds, reval, wave_types
+
+def phase_plane_plot(q_l, q_r, b_l, b_r, g=1., ax=None, which='alcrudo', perturb_guess=False, y_axis='u'):
+    r"""Plot the Hugoniot loci or integral curves in the h-u or h-hu plane."""
+    # Solve Riemann problem
+    states, speeds, reval, wave_types = \
+        exact_riemann_solution(q_l, q_r, b_l, b_r, g=g, which=which, perturb_guess=perturb_guess)
+
+    # Set plot bounds
+    if ax is None:
+        fig, ax = plt.subplots()
+    x = states[0,:]
+    if y_axis == 'hu':
+        y = states[1,:]
+    else:
+        y = states[1,:]/pospart(states[0,:])
+
+    left = 0
+    right = 3
+
+    xmax, xmin = max(x), min(x)
+    ymax = max(abs(y))
+    dx = xmax - xmin
+    ymax = max(abs(y))
+    ax.set_xlim(0, xmax + 0.5*dx)
+    ax.set_ylim(-1.5*ymax, 1.5*ymax)
+    ax.set_xlabel('Depth (h)')
+    if y_axis == 'u':
+        ax.set_ylabel('Velocity (u)')
+    else:
+        ax.set_ylabel('Momentum (hu)')
+
+    # Plot curves
+    h_l = states[0,left]
+    h1 = np.linspace(1.e-2,h_l)
+    h2 = np.linspace(h_l,xmax+0.5*dx)
+    if wave_types[0] == 'shock':
+        h_phys = h2
+        h_np = h1
+        color = 'r'
+        hu_np = hugoniot_locus(h_np, h_l, states[1,left], wave_family=1, g=g, y_axis=y_axis)
+        hu_phys = hugoniot_locus(h_phys, h_l, states[1,left], wave_family=1, g=g, y_axis=y_axis)
+        ax.plot(h_np,hu_np,'--r')
+        ax.plot(h_phys,hu_phys,'r')
+    else:
+        h_phys = h1
+        h_np = h2
+        color = 'b'
+        hu_phys = integral_curve(h_phys, h_l, states[1,left], wave_family=1, g=g, y_axis=y_axis)
+        hu_np = integral_curve(h_np, h_l, states[1,left], wave_family=1, g=g, y_axis=y_axis)
+        ax.plot(h_phys,hu_phys,'b')
+        ax.plot(h_np,hu_np,'--b')
+    if y_axis == 'u':
+        #  Plot conjugate states across bathymetry jump
+        h_conj = np.zeros_like(hu_phys)
+        u_conj = np.zeros_like(hu_phys)
+        for i in range(len(h_phys)):
+            hstar = h_phys[i]
+            ustar = hu_phys[i]
+            ff = lambda h: b_r-b_l + ustar**2/(2.*g)*(hstar**2/h**2-1.) + h - hstar
+            if i==0:
+                guess = hstar + b_l-b_r
+            else:
+                guess = h_conj[i-1]
+            h_conj[i] = fsolve(ff,guess)
+            u_conj[i] = hstar*ustar/h_conj[i]
+        plt.plot(h_conj, u_conj,color,alpha=0.5)
+
+    h_r = states[0,right]
+    h1 = np.linspace(1.e-2,h_r)
+    h2 = np.linspace(h_r,xmax+0.5*dx)
+    if wave_types[2] == 'shock':
+        hu1 = hugoniot_locus(h1, states[0,right], states[1,right], wave_family=2, g=g, y_axis=y_axis)
+        hu2 = hugoniot_locus(h2, states[0,right], states[1,right], wave_family=2, g=g, y_axis=y_axis)
+        ax.plot(h1,hu1,'--r')
+        ax.plot(h2,hu2,'r')
+        if y_axis == 'u':
+            #  Plot conjugate states across bathymetry jump
+            h_conj = np.zeros_like(hu2)
+            u_conj = np.zeros_like(hu2)
+            for i in range(len(h2)):
+                hstar = h2[i]
+                ustar = hu2[i]
+                ff = lambda h: b_l-b_r + ustar**2/(2.*g)*(hstar**2/h**2-1.) + h - hstar
+                h_conj[i] = fsolve(ff,hstar)
+                u_conj[i] = hstar*ustar/h_conj[i]
+            plt.plot(h_conj, u_conj,'r',alpha=0.5)
+
+    else:
+        hu1 = integral_curve(h1, states[0,right], states[1,right], wave_family=2, g=g, y_axis=y_axis)
+        hu2 = integral_curve(h2, states[0,right], states[1,right], wave_family=2, g=g, y_axis=y_axis)
+        ax.plot(h1,hu1,'b')
+        ax.plot(h2,hu2,'--b')
+        if y_axis == 'u':
+            #  Plot conjugate states across bathymetry jump
+            h_conj = np.zeros_like(hu1)
+            u_conj = np.zeros_like(hu1)
+            for i in range(len(h2)):
+                hstar = h1[i]
+                ustar = hu1[i]
+                ff = lambda h: b_r-b_l + ustar**2/(2.*g)*(hstar**2/h**2-1.) + h - hstar
+                if i==0:
+                    guess = hstar + b_l-b_r
+                else:
+                    guess = h_conj[i-1]
+                h_conj[i] = fsolve(ff,guess)
+                u_conj[i] = hstar*ustar/h_conj[i]
+            plt.plot(h_conj, u_conj,'b',alpha=0.5)
+
+
+    for xp,yp in zip(x,y):
+        ax.plot(xp,yp,'ok',markersize=10)
+    # Label states
+    for i,label in enumerate(('Left', '$L^*$', '$R^*$', 'Right')):
+        ax.text(x[i] + 0.025*dx,y[i] + 0.025*ymax,label)
