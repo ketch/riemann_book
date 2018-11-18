@@ -13,12 +13,45 @@
 
 ((* block predoc *))
     ((( super() )))
-    ((* block tableofcontents *))\tableofcontents((* endblock tableofcontents *))
+    ((* block tableofcontents *))
+        \frontmatter
+
+        \tableofcontents
+
+        \listoffigures
+
+        \listoftables
+
+        \mainmatter
+    ((* endblock tableofcontents *))
 ((* endblock predoc *))
 
 ((* block docclass *))
-\documentclass{SIAMGHbook2016}
+\documentclass[opener-c,final]{newsiambook}
 ((* endblock docclass *))
+
+((* block packages *))
+    \usepackage[T1]{fontenc}
+    \usepackage{amsmath} % Equations
+    \usepackage{amsfonts} % Equations
+
+    \usepackage{epsfig}
+    \usepackage{graphicx}
+    \usepackage{makeidx}
+    \usepackage{multicol}
+    \usepackage{subeqn}
+    \usepackage{crop}
+    \usepackage{xcolor} % Allow colors to be defined
+    \usepackage{fancyvrb} % verbatim replacement that allows latex
+    \usepackage{hyperref}
+    \usepackage{geometry} % Used to adjust the document margins
+    \usepackage{adjustbox} % Used to constrain images to a maximum size
+
+    \crop
+
+    \makeindex
+
+((* endblock packages *))
 
 ((* block author *))
 \author{David I. Ketcheson \and Randall J. LeVeque \and Mauricio del Razo Sarmina}

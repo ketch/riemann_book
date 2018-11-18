@@ -67,6 +67,7 @@ os.system('cp *.cls '+build_dir)
 os.system('cp *.css '+build_dir)
 os.system('cp riemann.bib '+build_dir)
 os.system('cp latexdefs.tex '+build_dir)
+os.system('cp static/* '+build_dir)
 
 # fix interact import statements in exact_solver demo codes:
 os.chdir(os.path.join(build_dir, 'exact_solvers'))
@@ -109,7 +110,7 @@ for i, chapter in enumerate(chapters):
             #              r"sns.set_context('paper')", line)
             output.write(line)
     args = ["jupyter", "nbconvert", "--to", "notebook", "--execute",
-            "--ExecutePreprocessor.kernel_name=python2",
+            "--ExecutePreprocessor.kernel_name=python",
             "--output", output_filename,
             "--ExecutePreprocessor.timeout=60", build_dir+output_filename]
     subprocess.check_call(args)
